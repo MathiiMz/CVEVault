@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vulnerabilidades de Seguridad</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f5f5f5;
+            padding: 20px;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        .card {
+            height: 100%;
+            border: none;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            transition: transform 0.2s;
+            background-color: #fafafa;
+        }
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .card-header {
+            background-color: #f0f0f0;
+            border-bottom: 1px solid #e0e0e0;
+            padding: 15px;
+        }
+        .card-body {
+            padding: 15px;
+        }
+        .card-title {
+            color: #333;
+            font-size: 1.1rem;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+        .card-text {
+            color: #666;
+            font-size: 0.9rem;
+            margin-bottom: 8px;
+        }
+        .badge {
+            font-size: 0.8rem;
+            padding: 5px 10px;
+        }
+        .loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255,255,255,0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .spinner-border {
+            width: 3rem;
+            height: 3rem;
+        }
+        .last-update {
+            text-align: right;
+            color: #666;
+            font-size: 0.9em;
+            margin-bottom: 10px;
+        }
+        .auto-update-status {
+            display: inline-block;
+            margin-left: 10px;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+        }
+        .status-active {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .filters {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .vulnerability-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .date-info {
+            font-size: 0.8rem;
+            color: #888;
+            margin-top: 10px;
+        }
+        .system-info {
+            font-size: 0.9rem;
+            color: #555;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>Vulnerabilidades de Seguridad</h1>
+            <div class="last-update">
+                Última actualización: <span id="lastUpdate">-</span>
+                <span id="autoUpdateStatus" class="auto-update-status status-active">Actualización automática activa</span>
+            </div>
+        </div>
+        
+        <div class="filters">
+            <div class="row">
+                <div class="col-md-4">
+                    <input type="text" id="searchCVE" class="form-control" placeholder="Buscar por CVE...">
+                </div>
+                <div class="col-md-4">
+                    <input type="text" id="searchSistema" class="form-control" placeholder="Buscar por Sistema...">
+                </div>
+                <div class="col-md-4">
+                    <select id="filterGravedad" class="form-select">
+                        <option value="">Todas las Gravedades</option>
+                        <option value="Critical">Critical</option>
+                        <option value="High">High</option>
+                        <option value="Moderate">Moderate</option>
+                        <option value="Low">Low</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div id="vulnerabilityGrid" class="vulnerability-grid">
+            <!-- Las cards se generarán dinámicamente aquí -->
+        </div>
+    </div>
+
+    <div id="loading" class="loading" style="display: none;">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Cargando...</span>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let importInterval;
+        const UPDATE_INTERVAL = 5 * 60 * 1000; // 5 minutos en milisegundos
+        
+        function updateLastUpdateTime() {
+            const now = new Date();
+            document.getElementById('lastUpdate').textContent = now.toLocaleTimeString();
+        }
+        
+        function showLoading() {
+            $('#loading').show();
+        }
+        
+        function hideLoading() {
+            $('#loading').hide();
+        }
+        
+        function getSeverityColor(severity) {
+            switch(severity) {
+                case 'Critical': return 'danger';
+                case 'High': return 'warning';
+                case 'Moderate': return 'info';
+                case 'Low': return 'success';
+                default: return 'secondary';
+            }
+        }
+        
+        function createVulnerabilityCard(vuln) {
+            const severityColor = getSeverityColor(vuln.gravedad_cvss);
+            return `
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span class="badge bg-${severityColor}">${vuln.gravedad_cvss}</span>
+                        <small class="text-muted">${vuln.cve}</small>
+                    </div>
+                    <div class="card-body">
+                        <h5 class="card-title">${vuln.nombre}</h5>
+                        <div class="system-info">
+                            <i class="fas fa-server"></i> ${vuln.sistema || 'Sistema no especificado'}
+                        </div>
+                        <p class="card-text">${vuln.descripcion || 'Sin descripción disponible'}</p>
+                        <div class="date-info">
+                            <div>Descubierto: ${vuln.fecha_descubrimiento || 'No especificado'}</div>
+                            <div>Lanzamiento: ${vuln.fecha_lanzamiento || 'No especificado'}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function loadVulnerabilities() {
+            showLoading();
+            $.ajax({
+                url: 'mostrar_vulnerabilidades.php',
+                method: 'GET',
+                success: function(response) {
+                    const grid = $('#vulnerabilityGrid');
+                    grid.empty();
+                    
+                    response.data.forEach(vuln => {
+                        grid.append(createVulnerabilityCard(vuln));
+                    });
+                    
+                    updateLastUpdateTime();
+                    hideLoading();
+                },
+                error: function() {
+                    hideLoading();
+                    alert('Error al cargar las vulnerabilidades');
+                }
+            });
+        }
+        
+        function runImport() {
+            showLoading();
+            $.ajax({
+                url: 'importar_vulnerabilidades.php',
+                method: 'GET',
+                success: function(response) {
+                    console.log('Importación completada:', response);
+                    loadVulnerabilities();
+                },
+                error: function(xhr, status, error) {
+                    console.error('Error en la importación:', error);
+                    hideLoading();
+                    alert('Error al importar las vulnerabilidades');
+                }
+            });
+        }
+        
+        function startAutoUpdate() {
+            if (importInterval) {
+                clearInterval(importInterval);
+            }
+            
+            runImport();
+            importInterval = setInterval(runImport, UPDATE_INTERVAL);
+            $('#autoUpdateStatus').addClass('status-active').text('Actualización automática activa');
+        }
+        
+        function filterVulnerabilities() {
+            const cveSearch = $('#searchCVE').val().toLowerCase();
+            const systemSearch = $('#searchSistema').val().toLowerCase();
+            const severityFilter = $('#filterGravedad').val();
+            
+            $('.card').each(function() {
+                const card = $(this);
+                const cve = card.find('.text-muted').text().toLowerCase();
+                const system = card.find('.system-info').text().toLowerCase();
+                const severity = card.find('.badge').text();
+                
+                const matchesCVE = cve.includes(cveSearch);
+                const matchesSystem = system.includes(systemSearch);
+                const matchesSeverity = !severityFilter || severity === severityFilter;
+                
+                card.toggle(matchesCVE && matchesSystem && matchesSeverity);
+            });
+        }
+        
+        $(document).ready(function() {
+            loadVulnerabilities();
+            startAutoUpdate();
+            
+            $('#searchCVE, #searchSistema').on('keyup', filterVulnerabilities);
+            $('#filterGravedad').on('change', filterVulnerabilities);
+        });
+    </script>
+</body>
+</html>
