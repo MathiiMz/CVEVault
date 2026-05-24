@@ -58,13 +58,38 @@ try {
         $types .= "s";
     }
     
-    // Ordenamiento
+    //Ordenamiento 
+    $allowedColumns = [
+        'fecha_descubrimiento',
+        'fecha_lanzamiento',
+        'gravedad_cvss',
+        'cve',
+        'sistema'
+    ];
+
+    $orderBy = isset($_GET['ordenar_por']) &&
+        in_array($_GET['ordenar_por'], $allowedColumns)
+        ? $_GET['ordenar_por']
+        : 'fecha_descubrimiento';
+
+    $orden = isset($_GET['orden']) &&
+        strtoupper($_GET['orden']) === 'ASC'
+        ? 'ASC'
+        : 'DESC';
+
+    $query .= " ORDER BY $orderBy $orden";
+
+
+    // Ordenamiento con Posible Vulnerabilidad de
+    /*
     $orderBy = isset($_GET['ordenar_por']) ? $_GET['ordenar_por'] : 'fecha_descubrimiento';
     $orden = isset($_GET['orden']) && strtoupper($_GET['orden']) === 'ASC' ? 'ASC' : 'DESC';
     $query .= " ORDER BY $orderBy $orden";
-    
+    */
+
     // Paginación
     $limit = isset($_GET['limite']) ? (int)$_GET['limite'] : 50;
+    $limit = max(1, min($limit, 100));
     $offset = isset($_GET['pagina']) ? ((int)$_GET['pagina'] - 1) * $limit : 0;
     $query .= " LIMIT ? OFFSET ?";
     $params[] = $limit;
@@ -80,8 +105,43 @@ try {
     $result = $stmt->get_result();
     
     // Obtener el total de registros para la paginación
+  
     $countQuery = "SELECT COUNT(*) as total FROM vulnerabilidades WHERE 1=1";
-    if (isset($_GET['cve'])) {
+
+    $CountParams = [];
+    $countTypes = "";
+
+    if (isset($_GET['cve'])){
+        $countQuery .= " AND cve LIKE ?";
+        $CountParams[] = "%" . $_GET['cve'] . "%";
+        $countTypes .= "s";
+    }
+
+    if (isset($_GET['sistema'])){
+        $countQuery .= " AND sistema = ?";
+        $CountParams[] = "%" . $_GET['sistema'] . "%";
+        $countTypes .= "s";
+    }
+
+    if (isset($_GET['gravedad'])){
+        $countQuery .= " AND gravedad_cvss = ?";
+        $CountParams[] = $_GET['gravedad'];
+        $countTypes .= "s";
+    }
+
+    $countStmt = $conn->prepare($countQuery)
+
+    if (!empty($CountParams)) {
+        $countStmt->bind_param($countTypes, ...$CountParams);
+    }
+
+    $countStmt->execute();
+
+    $totalResult = $countStmt->get_result();
+    $total = $totalResult->fetch_assoc()['total'];
+
+    // SQL INJECTION EN COUNTQUERY
+    /* if (isset($_GET['cve'])) {
         $countQuery .= " AND cve LIKE '%" . $_GET['cve'] . "%'";
     }
     if (isset($_GET['sistema'])) {
@@ -93,6 +153,9 @@ try {
     $totalResult = $conn->query($countQuery);
     $total = $totalResult->fetch_assoc()['total'];
     
+    */
+
+
     // Formatear los resultados
     $vulnerabilidades = [];
     while ($row = $result->fetch_assoc()) {
@@ -126,7 +189,7 @@ try {
     http_response_code(500);
     echo json_encode([
         'success' => false,
-        'error' => 'Error interno del servidor: ' . $e->getMessage()
+        'error' => 'Internal server error'
     ]);
 } finally {
     if (isset($stmt)) {

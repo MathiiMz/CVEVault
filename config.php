@@ -13,7 +13,7 @@ define('API_URL', 'https://cve.circl.lu/api/last');
 function getDBConnection() {
     $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
     if ($conn->connect_error) {
-        die("Error de conexión: " . $conn->connect_error);
+        throw new Exception("Database connection failed");
     }
     return $conn;
 }

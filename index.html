@@ -187,7 +187,7 @@
                         <small class="text-muted">${vuln.cve}</small>
                     </div>
                     <div class="card-body">
-                        <h5 class="card-title">${vuln.nombre}</h5>
+                        <h5 class="card-title">${escapehtml(vuln.nombre)}</h5>
                         <div class="system-info">
                             <i class="fas fa-server"></i> ${vuln.sistema || 'Sistema no especificado'}
                         </div>
@@ -201,6 +201,10 @@
             `;
         }
         
+        function escapehtml(text){
+            return $('<div>').text(text).html();
+        }
+
         function loadVulnerabilities() {
             showLoading();
             $.ajax({
